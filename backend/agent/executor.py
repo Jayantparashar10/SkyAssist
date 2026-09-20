@@ -1,10 +1,7 @@
-"""Step 4 — executor. Runs a decision against the database: an ``actions``
-row for the outcomes the airline system actually records (a voucher
-issued, a rebooking request submitted, a hotel offered or booked, a refund
-initiated), an ``escalations`` row for anything that needs a human, and an
-audit entry for every decision regardless of outcome. Idempotent: db.py's
-``insert_action_if_new`` enforces ``UNIQUE(pnr, type)``, so re-processing
-the same decision twice never double-grants anything.
+"""Executor: runs a decision against the database. An ``actions`` row for
+outcomes the airline system actually records, an ``escalations`` row for
+anything needing a human, and an audit entry for every decision. Idempotent
+via db.py's ``UNIQUE(pnr, type)`` constraint.
 """
 
 from __future__ import annotations
@@ -38,11 +35,10 @@ _ALREADY_DONE_LABELS: dict[str, str] = {
     "REFUND": "Refund initiated (R-REFUND)",
 }
 
-# Which rule triggered the escalation decides who has to act on it and how
-# (project's three-way escalation model): a supervisor approves/denies an
-# *exception* to policy; a human simply completes an *allowed* outcome the
-# agent can't process by itself; a legal/formal-complaint threat always
-# routes to a specialist immediately.
+# Which rule triggered the escalation decides who acts on it: a supervisor
+# approves/denies an exception (approval), a human completes an allowed
+# outcome the agent can't process itself (handoff), or a legal/complaint
+# threat routes to a specialist immediately.
 _ESCALATION_KIND_BY_RULE: dict[str, EscalationKind] = {
     "R-LEGAL": "immediate",
     "R-BEYOND": "approval",

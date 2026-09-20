@@ -60,17 +60,10 @@ DecisionAction = Literal[
     "ASK",
 ]
 
-# Which Decision.action values represent something the airline system
-# actually did — and so get an `actions` row when executor.py processes the
-# decision — and the status word db.py writes into that row's `status`
-# column. A Decision.action not in this map (STATUS, OFFER_OPTIONS,
-# CONFIRM_REFUND, QUOTE_FARE_DIFFERENCE, ASK, ...) is conversational only:
-# still logged to the audit trail, never persisted as an action.
-#
-# This is the single copy of that mapping — executor.py (deciding whether
-# to persist), db.py (choosing the status word to insert) and
-# tests/fakes.py (mirroring db.py's behavior) all import this one dict
-# rather than each keeping their own, so the three can never drift apart.
+# Decision.action values that get an `actions` row, mapped to the status
+# word written into it. Anything not listed here is conversational only —
+# logged to the audit trail but never persisted as an action. Single copy
+# shared by executor.py, db.py and tests/fakes.py.
 ACTION_STATUS_WORD: dict[str, str] = {
     "ISSUE_MEAL_VOUCHER": "issued",
     "GRANT_LOUNGE": "issued",
@@ -139,10 +132,8 @@ class EscalationPacket(BaseModel):
     customer_quote: str
     notes: list[str] = Field(default_factory=list)
     transcript_session_id: str
-    # Not shown to the supervisor directly — carries the raw Decision.params
-    # (topic / requested method / fare_diff_inr) so Approve/Complete knows
-    # exactly what outcome to record, without re-parsing free text out of
-    # `requested` / `blocked_by`.
+    # Not shown to the supervisor — raw Decision.params so Approve/Complete
+    # knows the exact outcome to record without parsing free text.
     decision_params: dict = Field(default_factory=dict)
 
 
@@ -231,20 +222,15 @@ class AuditEntry(BaseModel):
 
 
 class SessionContext(BaseModel):
-    """Persisted in ``sessions.context`` (JSONB). This is the state
-    ``policy.py`` needs across turns that a single message can't carry on
-    its own.
+    """Persisted in ``sessions.context`` (JSONB) — cross-turn state policy.py needs.
 
     - ``pending_offers``: beyond-policy topics already explained once, so a
-      repeat ask escalates instead of re-explaining (keyed by topic).
-    - ``resolved_topics``: beyond-policy topics a supervisor has already
-      decided, so repeated pressure after a denial doesn't re-open the case.
-    - ``pending_confirmations``: irreversible actions (a refund) offered but
-      not yet confirmed by the customer.
-    - ``hotel_offered``: whether the over-5h hotel offer is awaiting an
-      accept/decline from the customer.
-    - ``cancel_choice``: which option the customer picked for a cancelled
-      booking, once chosen.
+      repeat ask escalates instead of re-explaining.
+    - ``resolved_topics``: beyond-policy topics a supervisor already decided.
+    - ``pending_confirmations``: irreversible actions offered but not yet
+      confirmed by the customer.
+    - ``hotel_offered``: whether the over-5h hotel offer awaits accept/decline.
+    - ``cancel_choice``: which option the customer picked for a cancelled booking.
     """
 
     pending_offers: dict[str, dict] = Field(default_factory=dict)

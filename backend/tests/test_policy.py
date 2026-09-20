@@ -102,9 +102,7 @@ def test_delay_5h1_gets_hotel_offer_not_lounge():
 
 
 def test_delay_6h_exclusive_tier_gets_no_lounge():
-    # Explicit case from the testing requirements: a 6h delay, read
-    # literally, also satisfies "more than 3 hours" — the exclusive-tier
-    # interpretation (A-03) means lounge is NOT added on top of the hotel offer.
+    # A-03: exclusive tiers — a 6h delay gets no lounge on top of the hotel offer.
     decisions = policy.delay_decisions(delayed_booking(6.0))
     actions = {d.action for d in decisions}
     assert "GRANT_LOUNGE" not in actions
@@ -129,10 +127,9 @@ def test_delay_hotel_offer_not_auto_booked():
 def test_delay_boundary_offers_escalation_review_once():
     ctx = SessionContext()
     result = run("TR1190B", [intent("compensation_query", "what do I get")], ctx=ctx)
-    # Arvind is delayed 4h in the seed data, not a boundary case — use a
-    # synthetic booking-driven check instead via the internal helper.
+    # Arvind's 4h delay isn't a boundary case, so use a synthetic one.
     decisions = policy.delay_decisions(delayed_booking(3.0))
-    assert not any(d.action == "OFFER_ESCALATION" for d in decisions)  # not part of delay_decisions itself
+    assert not any(d.action == "OFFER_ESCALATION" for d in decisions)
     boundary_ctx = SessionContext()
     offer = policy._offer_delay_boundary_review(boundary_ctx)
     assert len(offer) == 1
@@ -165,8 +162,7 @@ def test_priya_status_query_offers_rebook_or_refund_no_flight_list():
 
 
 def test_priya_asking_about_return_leg_by_route_targets_return_not_cancelled_leg():
-    # Regression: "goa to delhi" and "delhi to goa" are different legs on
-    # the same PNR — asking about the return must never answer about SK-204.
+    # "goa to delhi" and "delhi to goa" are different legs on the same PNR.
     result = run("SK4821X", [intent("status_query", "what are the details of upcoming flight goa to delhi")])
     assert len(result.decisions) == 1
     status = result.decisions[0]
@@ -236,9 +232,8 @@ def test_priya_asking_refund_again_after_already_refunded_reports_status_not_rec
 
 
 def test_priya_status_query_about_refund_also_reports_refund_status():
-    # Regression: understand.py classifies "what is the status of my
-    # refund" as status_query, not compensation_query or refund — the
-    # already-refunded fact must still surface, alongside the flight status.
+    # "status of my refund" is status_query, not refund — the already-
+    # refunded fact must still surface alongside the flight status.
     existing = [ActionRecord(id=1, session_id="s", pnr="SK4821X", type="REFUND", params={}, rule_id="R-REFUND", status="initiated", created_at=datetime.now())]
     result = run("SK4821X", [intent("status_query", "what is the status of my refund")], existing=existing)
     assert len(result.decisions) == 2
@@ -260,8 +255,7 @@ def test_priya_asking_rebook_again_after_already_submitted_reports_status_not_re
 
 
 def test_leg_matching_generalizes_beyond_two_legs():
-    # Not capped at two — a synthetic 3-leg PNR to prove the matching just
-    # loops over however many bookings there are.
+    # Not capped at two — a synthetic 3-leg PNR.
     leg_a = make_booking(id=101, pnr="ZZ1111Z", flight_no="SK-501", origin="Delhi", destination="Mumbai", status="scheduled")
     leg_b = make_booking(id=102, pnr="ZZ1111Z", flight_no="SK-502", origin="Mumbai", destination="Chennai", status="cancelled", cause="operational reasons")
     leg_c = make_booking(id=103, pnr="ZZ1111Z", flight_no="SK-503", origin="Chennai", destination="Delhi", status="scheduled")
@@ -339,9 +333,7 @@ def test_arvind_hotel_request_under_5h_is_beyond_policy():
 
 
 def test_arvind_refund_request_explains_not_cancelled_never_silent():
-    # Regression: a delayed (not cancelled) customer asking for a refund as
-    # their first message must never produce zero decisions — that leaves
-    # the reply-writer with nothing to say and the customer with silence.
+    # A delayed (not cancelled) refund ask must never produce zero decisions.
     result = run("TR1190B", [intent("refund", "I want a refund")])
     assert len(result.decisions) == 1
     d = result.decisions[0]
@@ -359,25 +351,21 @@ def test_arvind_rebook_request_explains_not_cancelled_never_silent():
 
 
 def test_meher_lounge_request_still_beyond_over_5h_band():
-    # Sanity check the fixed request_lounge branch doesn't regress the
-    # already-correct over-5h case (no lounge in that band, A-03).
+    # No lounge in the over-5h band (A-03).
     result = run("WL7742", [intent("request_lounge", "can I get lounge access")])
     assert [d.action for d in result.decisions] == ["EXPLAIN_INELIGIBLE", "OFFER_ESCALATION"]
 
 
 def test_arvind_lounge_request_as_first_message_grants_it_directly():
-    # Regression: Arvind's 4h delay band *includes* lounge access — asking
-    # for it directly, before any status/compensation query ever ran in
-    # this session, must grant it via R-DELAY, not treat it as an exception.
+    # Arvind's 4h band includes lounge access — grant it directly, even as
+    # the first message, rather than treating it as an exception.
     result = run("TR1190B", [intent("request_lounge", "can I get lounge access please")])
     assert {d.action for d in result.decisions} == {"ISSUE_MEAL_VOUCHER", "GRANT_LOUNGE"}
     assert all(d.rule_id == "R-DELAY" for d in result.decisions)
 
 
 def test_meher_hotel_request_as_first_message_grants_offer_directly():
-    # Regression: Meher's 6h delay entitles her to a hotel offer — asking
-    # for it directly (skipping any prior compensation_query) must not
-    # silently do nothing just because the band already "qualifies".
+    # Meher's 6h band entitles her to a hotel offer even as the first message.
     result = run("WL7742", [intent("request_hotel", "I need a hotel for this delay")])
     assert {d.action for d in result.decisions} == {"ISSUE_MEAL_VOUCHER", "OFFER_HOTEL"}
     assert all(d.rule_id == "R-DELAY" for d in result.decisions)
@@ -402,9 +390,6 @@ def test_arvind_no_tier_priority_for_silver():
 
 
 def test_missed_flight_always_escalates_no_clarifying_question():
-    # understand.py is responsible for only emitting missed_flight for a
-    # genuine flight-connection issue — by the time policy.py sees it,
-    # there's no ambiguity left to ask about.
     result = run("TR1190B", [intent("missed_flight", "I missed my connecting flight because of this")])
     assert len(result.decisions) == 1
     d = result.decisions[0]
@@ -516,10 +501,7 @@ def test_legal_threat_flag_escalates_immediately():
 
 
 def test_already_granted_delay_actions_not_reissued_but_status_is_told():
-    # Regression: asking again after everything's already been granted must
-    # not re-issue anything (no new ISSUE_MEAL_VOUCHER/GRANT_LOUNGE action),
-    # but also must never go silent — the customer asked a real question
-    # and deserves an answer, not a reply-writer left with zero facts.
+    # Asking again must not re-issue anything, but must never go silent either.
     existing = [
         ActionRecord(id=1, session_id="s", pnr="TR1190B", type="ISSUE_MEAL_VOUCHER", params={}, rule_id="R-DELAY", status="issued", created_at=datetime.now()),
         ActionRecord(id=2, session_id="s", pnr="TR1190B", type="GRANT_LOUNGE", params={}, rule_id="R-DELAY", status="issued", created_at=datetime.now()),

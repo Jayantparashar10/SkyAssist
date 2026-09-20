@@ -1,10 +1,6 @@
-"""Deterministic reply builder. Pure, no LLM.
-
-Used when respond.py's LLM-written reply fails validator.py twice in a row
-(an LLM-provider rate limit or outage, or a reply the validator can't
-reconcile with the decisions). Built directly from the same Decision
-objects the LLM would have seen, so it can never say more than was
-actually decided.
+"""Deterministic reply builder. Pure, no LLM. Used when respond.py's
+LLM-written reply fails validator.py twice in a row — built directly from
+the same Decision objects, so it can never say more than was decided.
 """
 
 from __future__ import annotations
@@ -42,12 +38,8 @@ def build_reply(decisions: list[Decision], customer_name: str, sentiment: Sentim
 
 
 def build_welcome_message(customer: Customer, bookings: list[Booking]) -> str:
-    """The first message the customer sees right after logging in, before
-    they've typed anything. Deterministic, not LLM-written — it only ever
-    restates the customer's own real booking status (the same fact
-    R-STATUS would give in reply to a status_query), so there's nothing
-    here that needs validating against a decision.
-    """
+    """First message after login, before the customer types anything.
+    Deterministic — restates the same status fact R-STATUS would give."""
     first_name = customer.name.strip().split()[0] if customer.name.strip() else ""
     greeting = f"Hi {first_name}, thanks for reaching out." if first_name else "Thanks for reaching out."
 

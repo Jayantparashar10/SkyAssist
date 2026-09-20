@@ -86,10 +86,7 @@ def test_privacy_no_reference_is_not_a_violation():
 
 
 def test_guards_never_drops_or_reclassifies_intents():
-    # Telling a missed connecting flight apart from an unrelated remark (a
-    # missed meeting) is understand.py's job (a language judgment); guards.py
-    # must not second-guess it with a fixed vocabulary that would miss any
-    # phrasing it wasn't written for. Guards only ever adds caution flags.
+    # Guards only ever adds caution flags, never reclassifies an intent.
     missed_flight = Intent(type="missed_flight", quote="missing my connecting meeting", details=IntentDetails())
     u = blank_understanding()
     u = u.model_copy(update={"intents": [missed_flight]})

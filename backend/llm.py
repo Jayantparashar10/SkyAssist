@@ -1,12 +1,7 @@
 """LLM client wrapper (Groq). The only module that talks to the LLM over
-the network. Groq's ``chat.completions`` endpoint mirrors the OpenAI shape
-closely enough that ``structured_call``'s contract — a system/user prompt
-in, a schema-validated dict out — stayed unchanged through two earlier
-provider swaps (Cerebras, then OpenRouter); only the client construction
-and the request's extra fields differ. Temperature 0, and one retry with
-backoff: on a rate limit or outage, one retry, then the caller
-(understand.py / respond.py, ultimately api/index.py) falls back to
-buttons-only / templates.py. The chat must never show a raw error.
+the network. Temperature 0, one retry with backoff; on failure the caller
+(understand.py / respond.py) falls back to buttons-only / templates.py —
+the chat must never show a raw error.
 """
 
 from __future__ import annotations

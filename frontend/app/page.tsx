@@ -25,9 +25,8 @@ const DEMO_PNRS = [
   { pnr: "WL7742", name: "Meher Kaur" },
 ];
 
-// Picked once per page load, on the client only, via useSyncExternalStore —
-// the server snapshot is always null so SSR output and the first client
-// render match; the real pick appears right after hydration.
+// Picked once per page load, client-only — the server snapshot stays null
+// so SSR output matches the first client render before hydration picks one.
 let cachedDemoHint: (typeof DEMO_PNRS)[number] | null = null;
 function getClientDemoHint() {
   if (!cachedDemoHint) {
@@ -88,20 +87,9 @@ export default function CustomerPage() {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [messages, sending]);
 
-  // Polls the session every 5s so system messages posted by a supervisor
-  // decision show up without the customer refreshing.
-  // Note: pending choice buttons aren't part of GET /api/session/{id}, so a
-  // hard refresh mid-decision currently loses them until the next reply.
-  //
-  // sendingRef guards against a race with handleSend/handleChoice: both add
-  // an optimistic local message *before* the server request that persists
-  // it resolves. If a poll's GET /api/session/{id} lands in that window, it
-  // fetches a snapshot from before the message was written and overwrites
-  // local state, making the just-sent message flicker away until the next
-  // poll. Skipping the poll's state updates while a send is in flight (and
-  // re-checking after the await, in case one started mid-fetch) avoids the
-  // race entirely — the response that resolves moments later is always the
-  // authoritative, fully up-to-date state anyway.
+  // Polls the session every 5s so supervisor decisions show up without a
+  // refresh. sendingRef skips applying poll results while a send is in
+  // flight, so a stale snapshot can't overwrite an optimistic local message.
   useEffect(() => {
     if (!session) return;
     let cancelled = false;

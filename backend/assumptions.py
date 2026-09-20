@@ -1,17 +1,9 @@
-"""The assumption ledger (A-01 through A-15).
+"""The assumption ledger (A-01 through A-15). Every ``Decision`` that
+relies on a data-pack gap carries the assumption's ID, validated against
+this ledger (``validate_id`` / ``validate_ids``) so a typo fails loudly.
 
-The data pack this agent runs against leaves real gaps: no flight
-inventory, no payment-method data, no holiday calendar, no time-of-day for
-"the exercise is set on Wednesday 23 September 2026". Rather than let the
-LLM or a hardcoded string quietly fill a gap, every place the code makes a
-call about one of these gaps carries the assumption's ID on the resulting
-``Decision`` (``assumption_ids``), and that ID is validated against this
-ledger (see ``validate_id`` / ``validate_ids``) — a typo in an ID string
-fails loudly instead of silently vanishing from the audit trail.
-
-This is the single source of the assumption *text*: the customer-facing UI,
-the escalation handoff packet, and ``ASSUMPTIONS.md`` should all read from
-here rather than duplicating the wording.
+Single source of the assumption text — the escalation packet and
+``ASSUMPTIONS.md`` read from here rather than duplicating the wording.
 """
 
 from __future__ import annotations

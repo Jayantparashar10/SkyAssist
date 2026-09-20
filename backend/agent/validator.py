@@ -1,12 +1,8 @@
-"""Reply validator. Pure, no I/O, no LLM.
-
-Checks every rupee amount, hour count, time of day, flight number, and
-policy-sensitive word in a candidate reply against what the decisions
-actually say, plus the customer's own booked flight numbers (the only
-flight numbers that may ever legitimately appear — there is no inventory
-table, so nothing else exists to name). This is what stops the reply-
-writing LLM from adding an offer, amount, date or flight it wasn't given.
-On failure, the caller regenerates once, then falls back to templates.py.
+"""Reply validator. Pure, no I/O, no LLM. Checks every rupee amount, hour
+count, time, flight number and policy-sensitive word in a candidate reply
+against what the decisions actually say, plus the customer's own booked
+flight numbers. On failure, the caller regenerates once, then falls back
+to templates.py.
 """
 
 from __future__ import annotations

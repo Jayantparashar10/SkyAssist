@@ -1,13 +1,6 @@
-"""Hash-chained audit log.
-
-Every decision, action, escalation and supervisor outcome is written to
-``audit_log`` with ``hash = sha256(prev_hash + event + payload + ts)``, so
-a tampered or reordered entry breaks the chain and ``verify_chain`` catches
-it. Pure functions only: computing a chain link is arithmetic on strings,
-not I/O. Writing the resulting row to ``audit_log`` is db.py's job —
-executor.py calls ``next_link`` for the hash, then hands the row to the
-store. Keeping the hashing itself free of the database means it's testable
-(including tamper detection) without a connection.
+"""Hash-chained audit log: ``hash = sha256(prev_hash + event + payload + ts)``,
+so a tampered or reordered entry breaks the chain. Pure functions only —
+executor.py calls ``next_link`` for the hash, db.py writes the row.
 """
 
 from __future__ import annotations
@@ -25,18 +18,9 @@ def _payload_json(payload: dict) -> str:
 
 
 def _ts_iso(ts: datetime | str) -> str:
-    """A timezone-INDEPENDENT ISO string for a timestamp, so a hash computed
-    at insert time (a tz-aware ``datetime`` with whatever offset the clock
-    was in) still matches the hash recomputed at verify time.
-
-    Postgres's ``TIMESTAMPTZ`` stores an instant, not an offset — it always
-    round-trips a timestamp back as UTC regardless of the offset it was
-    inserted with. Hashing the raw ``isoformat()`` string would make
-    ``verify_chain`` report a broken chain for every entry that was ever
-    written and re-read (same instant, different offset, different
-    string) — this stops that by normalizing to UTC before hashing, both
-    when the link is first created and every time it's re-verified.
-    """
+    """Normalizes to UTC before hashing, so a hash computed at insert time
+    still matches on re-verify after Postgres round-trips the timestamp
+    back as UTC regardless of the offset it was inserted with."""
     if isinstance(ts, datetime):
         if ts.tzinfo is not None:
             ts = ts.astimezone(timezone.utc)

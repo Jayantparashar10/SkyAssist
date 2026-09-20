@@ -1,13 +1,10 @@
-"""FastAPI app entry. Deployed as a Vercel serverless function (this
-module exports ``app`` directly); run locally from inside ``backend/``:
+"""FastAPI app entry. Deployed as a Vercel serverless function (exports
+``app`` directly); run locally from inside ``backend/``:
 ``uvicorn api.index:app --reload --port 8000``.
 
 Route handlers stay thin: authenticate, load rows, call ``run_chat_turn`` /
-``run_choice_turn`` (the shared pipeline orchestration below), serialize.
-Those two functions are plain Python — no FastAPI/HTTP involved — so
-``backend/tests/test_scenarios.py`` and ``test_redteam.py`` call them
-directly against an in-memory store with a hand-built ``Understanding``,
-never touching the network or a real database.
+``run_choice_turn``, serialize. Those two are plain Python — no FastAPI —
+so tests call them directly against an in-memory store.
 """
 
 from __future__ import annotations
@@ -22,9 +19,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 from pydantic import BaseModel
 
-# backend/.env.local; resolved relative to this file so it loads regardless
-# of the working directory `uvicorn` was started from. A no-op if the file
-# is absent (e.g. on Vercel, where real env vars are set on the platform).
+# Resolved relative to this file so it loads regardless of cwd; a no-op
+# where the file is absent (e.g. Vercel, where env vars are set on the platform).
 load_dotenv(Path(__file__).resolve().parent.parent / ".env.local")
 
 from agent import executor, guards, policy, respond, templates, validator
@@ -47,16 +43,10 @@ from schemas import (
 
 app = FastAPI(title="SkyAssist backend")
 
-# The browser is only ever supposed to reach this API through the frontend's
-# own origin — frontend/next.config.ts proxies /api/* to this service
-# server-side, so a legitimate request never carries a cross-origin browser
-# Origin header at all. This restricts the one thing that does: a *different*
-# website's JS trying to call this API directly from a visitor's browser.
-# It does NOT stop a direct curl/script call (CORS is a browser-enforced
-# concept, not a server-side access check) — see CLAUDE.md for that caveat
-# and the stronger option (a shared-secret header) if it's ever needed.
-# Configurable so the deployed frontend origin doesn't have to be hardcoded;
-# defaults cover local dev only.
+# The browser only reaches this API through the frontend's own origin
+# (frontend/next.config.ts proxies /api/* server-side). This blocks a
+# different website's JS from calling the API directly from a browser;
+# it does not stop a direct curl/script call. Defaults cover local dev only.
 _default_origins = "http://localhost:3000,http://127.0.0.1:3000"
 _allowed_origins = [o.strip() for o in os.environ.get("ALLOWED_ORIGINS", _default_origins).split(",") if o.strip()]
 
@@ -161,10 +151,8 @@ def run_chat_turn(
 ) -> dict:
     guarded = guards.apply_guards(raw_message, understanding)
 
-    # A tier claimed in chat is always ignored for entitlements (policy.py
-    # never reads claimed_tier) but the claim itself is logged; an
-    # injection attempt is flagged and logged — the policy engine still
-    # only ever acts on real intents.
+    # A tier claimed in chat is never used for entitlements, but the claim
+    # is logged; an injection attempt is flagged and logged too.
     if guarded.claimed_tier and guarded.claimed_tier.strip().lower() != customer.tier.lower():
         store.insert_audit(session.id, "claimed_tier_ignored", {"claimed": guarded.claimed_tier, "actual": customer.tier})
     if guarded.injection_attempt:

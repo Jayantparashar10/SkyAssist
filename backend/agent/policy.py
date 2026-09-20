@@ -1,19 +1,9 @@
-"""The policy engine. Pure functions, no I/O, no LLM calls — every branch
-here must be exercised by backend/tests/test_policy.py without a database
-or network call.
+"""Policy engine: pure functions, no I/O, no LLM calls. Applies the A-01..
+A-15 assumptions from ``assumptions.py``; ``claimed_tier`` is never read
+here, only ``Customer.tier`` decides entitlements.
 
-This is the one place the data-pack ambiguities resolved in
-``assumptions.py`` (A-01..A-15) turn into code. Nothing here may be
-loosened without a matching entry in that ledger, and ``claimed_tier`` from
-the Understanding must never be read for entitlements — only
-``Customer.tier`` (from the database) decides tier-based outcomes.
-
-Two entry points:
-  - ``evaluate(...)``       — free-text intents from understand.py + guards.py.
-  - ``resolve_choice(...)`` — a button click (already structured — no LLM
-    call is involved in resolving it).
-Both return an ``EvaluationResult`` (decisions + the updated session
-context); the caller (executor.py) persists both.
+Two entry points: ``evaluate`` (free-text intents) and ``resolve_choice``
+(a button click). Both return an ``EvaluationResult`` that executor.py persists.
 """
 
 from __future__ import annotations
@@ -67,11 +57,9 @@ def find_delayed_leg(bookings: list[Booking]) -> Booking | None:
 
 
 def _leg_named_in_quote(bookings: list[Booking], quote: str) -> Booking | None:
-    """A customer with two legs on one PNR (Priya: an outbound and a
-    return) can name either one — by flight number, or by route ("goa to
-    delhi" is not "delhi to goa", it's the *other* leg). Checking route
-    order (not just that both city names appear, since both legs share the
-    same two cities) is what tells them apart."""
+    """Matches by flight number, or by route order — "goa to delhi" and
+    "delhi to goa" are different legs, so origin must appear before
+    destination, not just both city names present."""
     quote_lower = quote.lower()
     for b in bookings:
         if b.flight_no and b.flight_no.lower() in quote_lower:
@@ -136,10 +124,7 @@ def cancel_offer_decision() -> Decision:
 
 
 def _not_cancelled_decision(bookings: list[Booking], requested: str) -> Decision:
-    """Free rebooking and refunds are gated on the booking actually being
-    cancelled (R-CANCEL) — asking for either on a merely-delayed or
-    on-schedule booking must say why, not silently do nothing, which would
-    leave the reply-writer with zero facts to work from."""
+    """Rebooking/refund require a cancelled leg — explain why when there isn't one."""
     delayed = find_delayed_leg(bookings)
     if delayed is not None:
         fact = (
@@ -257,12 +242,8 @@ def _join_labels(labels: list[str]) -> str:
 
 
 def _already_handled_decision(booking: Booking, existing_types: set[str]) -> Decision | None:
-    """A repeat ask about something already done (a refund already
-    initiated, a rebooking already submitted, delay compensation already
-    granted) must report its status, never silently do nothing — the same
-    principle as A-08's "tell the human, don't guess", applied to telling
-    the customer what already happened instead of leaving them with a
-    reply-writer that has zero facts to work from."""
+    """A repeat ask about something already done (refund, rebooking, delay
+    compensation) reports its status instead of silently doing nothing."""
     if booking.status == "cancelled":
         if "REFUND" in existing_types:
             return Decision(
@@ -305,9 +286,8 @@ def _already_handled_decision(booking: Booking, existing_types: set[str]) -> Dec
 
 
 def delay_decisions(booking: Booking) -> list[Decision]:
-    """Exclusive compensation tiers: a delay falls into exactly one band.
-    A-04: a delay of exactly 3 or exactly 5 hours falls into the lower band
-    (the ``<=`` comparisons below do that without a special case)."""
+    """Exclusive compensation tiers. A-04: exactly 3h/5h falls into the
+    lower band, via ``<=``."""
     hours = delay_hours(booking)
     if hours is None:
         return []
@@ -378,9 +358,7 @@ def _decline_hotel_decision() -> Decision:
 
 
 def _offer_delay_boundary_review(ctx: SessionContext) -> list[Decision]:
-    """A-04: a delay exactly on the 3h/5h boundary gets the lower band, but
-    the customer can still ask a supervisor to double-check it — offered
-    once, never re-offered on every subsequent message about the delay."""
+    """A-04 boundary delay: offer a supervisor review once, not on every message."""
     topic = "delay_band_boundary"
     if topic in ctx.pending_offers or topic in ctx.resolved_topics:
         return []
@@ -515,10 +493,7 @@ def _decline_decision(topic: str) -> Decision:
 
 
 def _beyond(ctx: SessionContext, topic: str, requested_text: str) -> list[Decision]:
-    """Why explained-first rather than escalated at once: declining
-    something the policy plainly excludes is just applying the policy,
-    which needs no extra authority. Only an *exception* to policy needs a
-    human, so this only escalates once the customer insists or accepts."""
+    """Explains first; only escalates once the customer insists or accepts."""
     resolved = ctx.resolved_topics.get(topic)
     if resolved == "denied":
         return [_already_denied_decision(topic)]
@@ -589,11 +564,6 @@ def _handle_intent(
             hours = delay_hours(booking)
             if hours in (3.0, 5.0):
                 out.extend(_offer_delay_boundary_review(ctx))
-        # Mutually exclusive with the two branches above by construction
-        # (cancel_offer/_delay_decisions_if_new only fire before something
-        # exists; this only fires after) — safe to always attempt, so a
-        # status_query about "my refund" gets an actual answer, not just
-        # the flight's own status.
         already = _already_handled_decision(booking, existing_types)
         if already:
             out.append(already)
@@ -632,10 +602,6 @@ def _handle_intent(
         booking = find_delayed_leg(bookings)
         hours = delay_hours(booking) if booking else None
         if hours is not None and hours > 5:
-            # Their band already qualifies — grant it now via the normal
-            # R-DELAY path rather than assuming it was already offered
-            # earlier in the conversation (it may not have been, e.g. if
-            # this is the customer's first message).
             return _delay_decisions_if_new(booking, existing_types)
         return _beyond(ctx, "request_hotel_under_5h", intent.quote)
 
@@ -645,8 +611,6 @@ def _handle_intent(
         booking = find_delayed_leg(bookings)
         hours = delay_hours(booking) if booking else None
         if hours is not None and 3 < hours <= 5:
-            # Their band already includes lounge access — grant it now
-            # rather than treating an entitled ask as a policy exception.
             return _delay_decisions_if_new(booking, existing_types)
         return _beyond(ctx, "request_lounge", intent.quote)
 
@@ -660,10 +624,6 @@ def _handle_intent(
         return [_return_leg_escalate_decision(bookings)]
 
     if t == "missed_flight":
-        # understand.py only emits this intent for an actual missed flight
-        # connection, never for an unrelated downstream inconvenience (a
-        # missed meeting) — telling those apart is a language judgment
-        # made once, at the LLM step, not re-litigated here.
         return [_nonairline_escalate_decision()]
 
     return []

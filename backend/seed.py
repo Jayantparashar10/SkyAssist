@@ -1,16 +1,7 @@
-"""Seed data transcribed verbatim from the data pack (``Assignment 3
-Customer Resolution Agent.pdf``) plus the one fare quote the data pack
-itself gives (Scenario 3 — a ₹2,000 fare difference, no flight number,
-time or route, so none is invented). This is the single source of
-customer/booking/fare-quote facts for both the real Postgres seed
-(``python -m seed``, run from inside ``backend/``, and the ``/api/reset``
-handler) and the test fixtures in ``backend/tests/`` — one source, so a
-test can never silently drift from what actually gets loaded into the
-database.
-
-The only field here that isn't verbatim from the data pack is
-``origin``/``destination``, which use the city names as given rather than
-an invented IATA code.
+"""Seed data transcribed verbatim from the data pack, plus the one fare
+quote it gives (Scenario 3 — ₹2,000 difference, no flight/time/route
+invented). Single source for both the real Postgres seed (``python -m
+seed``, ``/api/reset``) and the test fixtures, so they can't drift apart.
 """
 
 from __future__ import annotations

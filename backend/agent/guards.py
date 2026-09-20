@@ -1,20 +1,10 @@
 """Guards. Pure, no I/O, no LLM calls — a deterministic backstop layered
-*after* understand.py, run before policy.py ever sees the Understanding.
+after understand.py, before policy.py sees the Understanding.
 
-Every check here can only make an Understanding *more* cautious: legal/
-formal-complaint and prompt-injection detection never get cleared once
-set, whether the LLM or this keyword/pattern backstop set them. Guards
-deliberately does not try to *drop* or reclassify an intent by pattern-
-matching the message text — telling a missed connecting flight apart from
-an unrelated remark (a missed meeting) is a language-understanding
-judgment, not a fixed vocabulary, and belongs in understand.py's prompt,
-not in a keyword list here that would silently miss any phrasing it wasn't
-written for.
-
-``claimed_tier`` passes through untouched — it is logged elsewhere for the
-audit trail, but no code in this file or in policy.py ever reads it to
-decide what a customer is entitled to; entitlements come from the
-customer's tier in the database only.
+Every check here can only make an Understanding *more* cautious (legal/
+injection flags never get cleared once set). Guards never drops or
+reclassifies an intent by pattern-matching — that's a language-
+understanding judgment that belongs in understand.py's prompt.
 """
 
 from __future__ import annotations

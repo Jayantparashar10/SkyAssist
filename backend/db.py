@@ -1,18 +1,12 @@
-"""Database access. The only module that talks to Postgres. Every function
-that touches business logic (policy, guards, validation, the audit hash
-chain) takes plain typed data in and out — this module's job is purely to
-move rows in and out of Neon.
+"""Database access. The only module that talks to Postgres.
 
-``Store`` is a ``Protocol`` (structural typing, not inheritance) so
-``backend/tests/fakes.py`` can provide an ``InMemoryStore`` with the exact
-same method signatures, letting executor.py and api/index.py be tested
-without a live database. ``PostgresStore`` below is the real implementation
-used at runtime.
+``Store`` is a ``Protocol`` so ``tests/fakes.py`` can provide an
+``InMemoryStore`` with the same method signatures, letting executor.py and
+api/index.py be tested without a live database. ``PostgresStore`` is the
+real implementation.
 
-Serverless functions cannot keep a connection pool alive, so each request
-opens one connection through Neon's pooled endpoint and closes it when the
-request finishes — see ``get_connection`` / the FastAPI dependency in
-api/index.py.
+Serverless functions can't keep a connection pool alive, so each request
+opens one connection and closes it when done — see ``get_connection``.
 """
 
 from __future__ import annotations
@@ -113,8 +107,7 @@ class PostgresStore:
     # --- customers / bookings / fare quotes -----------------------------------
 
     def authenticate(self, pnr: str, last_name: str) -> Optional[tuple[Customer, list[Booking]]]:
-        # A-09: PNR format/length is never validated (WL7742 is 6 characters,
-        # the others 7) — matching is by exact string equality only.
+        # A-09: PNR + last name matched by exact string equality only.
         bookings = self.get_bookings(pnr)
         if not bookings:
             return None
@@ -212,9 +205,7 @@ class PostgresStore:
 
     def upsert_action(self, session_id: str, pnr: str, type_: str, params: dict, rule_id: str) -> ActionRecord:
         """Used by the supervisor-approval path, where an approved exception
-        may legitimately supersede an action the agent already recorded
-        (e.g. a fare waiver approved after the customer already saw the
-        pay-the-difference quote)."""
+        may supersede an action the agent already recorded."""
         status = ACTION_STATUS_WORD.get(type_, "issued")
         row = self.conn.execute(
             """INSERT INTO actions (session_id, pnr, type, params, rule_id, status)

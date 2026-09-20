@@ -1,10 +1,7 @@
 """In-memory fake implementing the same method surface as db.PostgresStore
-(structurally — db.Store is a Protocol, so no inheritance is required).
-Lets executor.py / api/index.py be exercised end-to-end in tests without a
-live Postgres connection. The LLM is what "mocked" refers to in
-test_scenarios.py / test_redteam.py — this store is a real, if in-memory,
-implementation of the same data operations Postgres performs, including
-the ``UNIQUE(pnr, type)`` idempotency guarantee.
+(structurally — db.Store is a Protocol). Lets executor.py / api/index.py
+be exercised end-to-end in tests without a live Postgres connection,
+including the ``UNIQUE(pnr, type)`` idempotency guarantee.
 """
 
 from __future__ import annotations
