@@ -224,6 +224,62 @@ def test_priya_confirming_refund_executes_scoped_to_sk204():
     assert "A-11" in refund.assumption_ids and "A-15" in refund.assumption_ids
 
 
+def test_priya_asking_refund_again_after_already_refunded_reports_status_not_reconfirm():
+    existing = [ActionRecord(id=1, session_id="s", pnr="SK4821X", type="REFUND", params={}, rule_id="R-REFUND", status="initiated", created_at=datetime.now())]
+    result = run("SK4821X", [intent("refund", "where is my refund")], existing=existing)
+    assert len(result.decisions) == 1
+    d = result.decisions[0]
+    assert d.action == "STATUS"
+    assert d.rule_id == "R-REFUND"
+    assert "SK-204" in d.customer_facing_facts[0]
+    assert "already" in d.customer_facing_facts[0].lower()
+
+
+def test_priya_status_query_about_refund_also_reports_refund_status():
+    # Regression: understand.py classifies "what is the status of my
+    # refund" as status_query, not compensation_query or refund — the
+    # already-refunded fact must still surface, alongside the flight status.
+    existing = [ActionRecord(id=1, session_id="s", pnr="SK4821X", type="REFUND", params={}, rule_id="R-REFUND", status="initiated", created_at=datetime.now())]
+    result = run("SK4821X", [intent("status_query", "what is the status of my refund")], existing=existing)
+    assert len(result.decisions) == 2
+    assert {d.action for d in result.decisions} == {"STATUS"}
+    assert {d.rule_id for d in result.decisions} == {"R-STATUS", "R-REFUND"}
+    facts = " ".join(f for d in result.decisions for f in d.customer_facing_facts)
+    assert "cancelled" in facts.lower()
+    assert "already" in facts.lower() and "refund" in facts.lower()
+
+
+def test_priya_asking_rebook_again_after_already_submitted_reports_status_not_resubmit():
+    existing = [ActionRecord(id=1, session_id="s", pnr="SK4821X", type="REBOOK_REQUEST", params={}, rule_id="R-REBOOK", status="submitted", created_at=datetime.now())]
+    result = run("SK4821X", [intent("rebook", "any update on my rebooking")], existing=existing)
+    assert len(result.decisions) == 1
+    d = result.decisions[0]
+    assert d.action == "STATUS"
+    assert d.rule_id == "R-REBOOK"
+    assert "already" in d.customer_facing_facts[0].lower()
+
+
+def test_leg_matching_generalizes_beyond_two_legs():
+    # Not capped at two — a synthetic 3-leg PNR to prove the matching just
+    # loops over however many bookings there are.
+    leg_a = make_booking(id=101, pnr="ZZ1111Z", flight_no="SK-501", origin="Delhi", destination="Mumbai", status="scheduled")
+    leg_b = make_booking(id=102, pnr="ZZ1111Z", flight_no="SK-502", origin="Mumbai", destination="Chennai", status="cancelled", cause="operational reasons")
+    leg_c = make_booking(id=103, pnr="ZZ1111Z", flight_no="SK-503", origin="Chennai", destination="Delhi", status="scheduled")
+    three_legs = [leg_a, leg_b, leg_c]
+
+    u = understanding(intent("status_query", "what about the chennai to delhi leg"))
+    result = policy.evaluate(customer("SK4821X"), three_legs, [], u, EMPTY_CTX, [])
+    status = result.decisions[0]
+    assert status.params["flight"] == "SK-503"
+    assert status.params["status"] == "scheduled"
+
+    u2 = understanding(intent("status_query", "what about SK-502"))
+    result2 = policy.evaluate(customer("SK4821X"), three_legs, [], u2, EMPTY_CTX, [])
+    status2 = result2.decisions[0]
+    assert status2.params["flight"] == "SK-502"
+    assert status2.params["status"] == "cancelled"
+
+
 def test_priya_insisting_on_cash_specifically_escalates():
     result = run("SK4821X", [intent("refund_different_method", "no, cash specifically", refund_method_mentioned="cash")])
     d = result.decisions[0]
@@ -459,13 +515,22 @@ def test_legal_threat_flag_escalates_immediately():
     assert legal.action == "ESCALATE"
 
 
-def test_already_granted_delay_actions_not_reissued():
+def test_already_granted_delay_actions_not_reissued_but_status_is_told():
+    # Regression: asking again after everything's already been granted must
+    # not re-issue anything (no new ISSUE_MEAL_VOUCHER/GRANT_LOUNGE action),
+    # but also must never go silent — the customer asked a real question
+    # and deserves an answer, not a reply-writer left with zero facts.
     existing = [
         ActionRecord(id=1, session_id="s", pnr="TR1190B", type="ISSUE_MEAL_VOUCHER", params={}, rule_id="R-DELAY", status="issued", created_at=datetime.now()),
         ActionRecord(id=2, session_id="s", pnr="TR1190B", type="GRANT_LOUNGE", params={}, rule_id="R-DELAY", status="issued", created_at=datetime.now()),
     ]
     result = run("TR1190B", [intent("compensation_query", "what did I get again?")], existing=existing)
-    assert result.decisions == []
+    assert len(result.decisions) == 1
+    d = result.decisions[0]
+    assert d.action == "STATUS"
+    assert d.rule_id == "R-DELAY"
+    assert "meal voucher" in d.customer_facing_facts[0]
+    assert "lounge" in d.customer_facing_facts[0].lower()
 
 
 def test_denied_topic_does_not_reescalate_on_repeated_pressure():

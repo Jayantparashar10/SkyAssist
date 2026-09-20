@@ -553,7 +553,8 @@ why). Locally, Next.js and uvicorn run as two separate processes.
 | `DATABASE_URL` | backend project | Neon pooled connection string |
 | `SIM_NOW` | backend project | `2026-09-23T10:00:00+05:30` |
 | `SUPERVISOR_PASSCODE` | backend project | (secret) |
-| `BACKEND_URL` | frontend project | `https://skyassist-backend.vercel.app` |
+| `ALLOWED_ORIGINS` | backend project | the deployed frontend's URL (CORS — see §10) |
+| `BACKEND_URL` | frontend project | the deployed backend's URL |
 
   Locally, all of these go in `.env.local` files next to the code that reads them
   (`backend/.env.local` for the Python vars, `frontend/.env.local` only if overriding the

@@ -18,6 +18,7 @@ from typing import Callable, Optional
 
 from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, Header, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 from pydantic import BaseModel
 
@@ -45,6 +46,27 @@ from backend.schemas import (
 )
 
 app = FastAPI(title="SkyAssist backend")
+
+# The browser is only ever supposed to reach this API through the frontend's
+# own origin — frontend/next.config.ts proxies /api/* to this service
+# server-side, so a legitimate request never carries a cross-origin browser
+# Origin header at all. This restricts the one thing that does: a *different*
+# website's JS trying to call this API directly from a visitor's browser.
+# It does NOT stop a direct curl/script call (CORS is a browser-enforced
+# concept, not a server-side access check) — see CLAUDE.md for that caveat
+# and the stronger option (a shared-secret header) if it's ever needed.
+# Configurable so the deployed frontend origin doesn't have to be hardcoded;
+# defaults cover local dev only.
+_default_origins = "http://localhost:3000,http://127.0.0.1:3000"
+_allowed_origins = [o.strip() for o in os.environ.get("ALLOWED_ORIGINS", _default_origins).split(",") if o.strip()]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=_allowed_origins,
+    allow_credentials=False,
+    allow_methods=["GET", "POST"],
+    allow_headers=["Content-Type", "X-Supervisor-Passcode"],
+)
 
 
 # --- dependencies -------------------------------------------------------------

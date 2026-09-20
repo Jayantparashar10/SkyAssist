@@ -589,18 +589,33 @@ def _handle_intent(
             hours = delay_hours(booking)
             if hours in (3.0, 5.0):
                 out.extend(_offer_delay_boundary_review(ctx))
+        # Mutually exclusive with the two branches above by construction
+        # (cancel_offer/_delay_decisions_if_new only fire before something
+        # exists; this only fires after) — safe to always attempt, so a
+        # status_query about "my refund" gets an actual answer, not just
+        # the flight's own status.
+        already = _already_handled_decision(booking, existing_types)
+        if already:
+            out.append(already)
         return out
 
     if t == "rebook":
         booking = find_cancelled_leg(bookings)
         if booking is None:
             return [_not_cancelled_decision(bookings, "free rebooking")]
+        if "REBOOK_REQUEST" in existing_types:
+            already = _already_handled_decision(booking, existing_types)
+            return [already] if already else []
         ctx.cancel_choice = "rebook"
         return [_rebook_request_decision(customer, booking)]
 
     if t == "refund":
-        if find_cancelled_leg(bookings) is None:
+        booking = find_cancelled_leg(bookings)
+        if booking is None:
             return [_not_cancelled_decision(bookings, "a refund")]
+        if "REFUND" in existing_types:
+            already = _already_handled_decision(booking, existing_types)
+            return [already] if already else []
         ctx.cancel_choice = "refund"
         return _confirm_refund_decisions(bookings, ctx)
 

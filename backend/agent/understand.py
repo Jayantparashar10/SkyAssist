@@ -24,7 +24,10 @@ SYSTEM_PROMPT = (
     "Intent definitions — pick the single closest one, never a nearby type that only sounds "
     "similar:\n"
     "- status_query: asking what is currently happening with their own booking/flight (is it "
-    "delayed, cancelled, what time does it now leave). Not a request for any action.\n"
+    "delayed, cancelled, what time does it now leave), OR the status of anything they already "
+    'asked for (a refund, a rebooking, compensation) — "where is my refund" and "any update on '
+    'my rebooking" are status_query, not general_question, even though no new action is being '
+    "requested.\n"
     "- compensation_query: asking what they are owed/entitled to for a delay or cancellation "
     '("what do I get", "what am I entitled to"), without naming a specific benefit.\n'
     "- request_upgrade: wants a complimentary upgrade to a better cabin class on the flight "
@@ -52,7 +55,10 @@ SYSTEM_PROMPT = (
     "meeting or appointment, which gets no intent at all (it is color, not a request; do not "
     "ask a clarifying question about it either).\n"
     "- other_passenger_query: asks about a booking, PNR or person that is not themselves.\n"
-    "- general_question / greeting / other: anything else, including small talk and thanks.\n\n"
+    "- general_question / greeting / other: anything else, including small talk and thanks — "
+    "never a question about their own booking, flight, or something they already asked for; "
+    "those always belong to one of the specific types above, even when phrased as a check-in "
+    '("just checking in on this", "any news?") rather than a fresh request.\n\n'
     "The details.refund_method_mentioned and details.other_pnr_or_name fields must stay null "
     "unless the intent is genuinely about a payment method or another person's booking — never "
     "repurpose either field to hold an unrelated quote or note.\n\n"
