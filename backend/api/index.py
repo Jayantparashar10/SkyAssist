@@ -1,6 +1,6 @@
 """FastAPI app entry. Deployed as a Vercel serverless function (this
-module exports ``app`` directly); run locally with
-``uvicorn backend.api.index:app --reload --port 8000``.
+module exports ``app`` directly); run locally from inside ``backend/``:
+``uvicorn api.index:app --reload --port 8000``.
 
 Route handlers stay thin: authenticate, load rows, call ``run_chat_turn`` /
 ``run_choice_turn`` (the shared pipeline orchestration below), serialize.
@@ -27,11 +27,11 @@ from pydantic import BaseModel
 # is absent (e.g. on Vercel, where real env vars are set on the platform).
 load_dotenv(Path(__file__).resolve().parent.parent / ".env.local")
 
-from backend.agent import executor, guards, policy, respond, templates, validator
-from backend.agent.understand import understand
-from backend.audit import verify_chain
-from backend.db import PostgresStore, Store, get_connection
-from backend.schemas import (
+from agent import executor, guards, policy, respond, templates, validator
+from agent.understand import understand
+from audit import verify_chain
+from db import PostgresStore, Store, get_connection
+from schemas import (
     ActionRecord,
     Booking,
     Choice,

@@ -1,8 +1,8 @@
 """Live LLM eval for understand.py. NOT run in CI and not collected by
 pytest — a free/low-tier API key is often rate-limited, so this is a
-script, run manually:
+script, run manually from inside backend/:
 
-    GROQ_API_KEY=... python -m backend.tests.eval_understand
+    GROQ_API_KEY=... python -m tests.eval_understand
 
 Reports intent-type accuracy and legal/formal-complaint flag recall over
 ~30 labelled customer messages (English, Hindi, Hinglish; calm through
@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import time
 
-from backend.agent.understand import understand
+from agent.understand import understand
 
 # (message, expected intent types (subset the model must produce),
 #  forbidden intent types (must NOT appear), expect legal/formal-complaint flag)

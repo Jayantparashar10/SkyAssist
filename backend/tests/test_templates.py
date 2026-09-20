@@ -4,9 +4,9 @@ welcome message. Pure, no LLM, no DB.
 
 from __future__ import annotations
 
-from backend.agent.templates import build_reply, build_welcome_message
-from backend.schemas import Decision
-from backend.seed import build_fixtures
+from agent.templates import build_reply, build_welcome_message
+from schemas import Decision
+from seed import build_fixtures
 
 CUSTOMERS, BOOKINGS, _ = build_fixtures()
 
@@ -67,7 +67,7 @@ def test_welcome_message_never_invents_a_flight_number_not_in_bookings():
 
 
 def test_welcome_message_for_unaffected_booking_is_generic():
-    from backend.schemas import Booking
+    from schemas import Booking
     from datetime import datetime
 
     customer = CUSTOMERS["SK4821X"]

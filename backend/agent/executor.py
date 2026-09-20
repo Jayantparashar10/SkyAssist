@@ -11,8 +11,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from backend.clock import IST
-from backend.schemas import (
+from clock import IST
+from schemas import (
     ACTION_STATUS_WORD,
     ActionRecord,
     Booking,
@@ -27,7 +27,7 @@ from backend.schemas import (
 )
 
 if TYPE_CHECKING:
-    from backend.db import Store
+    from db import Store
 
 _ALREADY_DONE_LABELS: dict[str, str] = {
     "ISSUE_MEAL_VOUCHER": "Meal voucher issued (R-DELAY)",

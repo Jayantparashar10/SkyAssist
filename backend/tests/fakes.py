@@ -13,9 +13,9 @@ import itertools
 import uuid
 from datetime import datetime
 
-from backend import audit as audit_module
-from backend.clock import sim_now
-from backend.schemas import (
+import audit as audit_module
+from clock import sim_now
+from schemas import (
     ACTION_STATUS_WORD,
     ActionRecord,
     Escalation,
@@ -24,7 +24,7 @@ from backend.schemas import (
     Session,
     SessionContext,
 )
-from backend.seed import build_fixtures
+from seed import build_fixtures
 
 
 class InMemoryStore:

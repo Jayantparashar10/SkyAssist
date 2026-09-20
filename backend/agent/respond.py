@@ -6,8 +6,8 @@ rule, only phrase what's already been decided.
 
 from __future__ import annotations
 
-from backend import llm
-from backend.schemas import Decision, Language, Sentiment
+import llm
+from schemas import Decision, Language, Sentiment
 
 SYSTEM_PROMPT = (
     "You write a short, polite reply to an airline customer from a list of decisions that "

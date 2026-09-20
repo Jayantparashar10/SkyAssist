@@ -20,8 +20,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from backend.clock import IST
-from backend.schemas import (
+from clock import IST
+from schemas import (
     ActionRecord,
     Booking,
     Customer,

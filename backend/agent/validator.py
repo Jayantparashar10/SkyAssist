@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import re
 
-from backend.schemas import Decision
+from schemas import Decision
 
 SENSITIVE_WORDS = [
     "upgrade",

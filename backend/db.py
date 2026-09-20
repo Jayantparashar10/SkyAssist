@@ -27,7 +27,7 @@ import psycopg
 from psycopg.rows import dict_row
 from psycopg.types.json import Json
 
-from backend.schemas import (
+from schemas import (
     ACTION_STATUS_WORD,
     ActionRecord,
     Booking,
@@ -270,8 +270,8 @@ class PostgresStore:
     # --- audit log ---------------------------------------------------------------
 
     def insert_audit(self, session_id: Optional[str], event: str, payload: dict) -> None:
-        from backend import audit as audit_module
-        from backend.clock import sim_now
+        import audit as audit_module
+        from clock import sim_now
 
         last = self.conn.execute("SELECT hash FROM audit_log ORDER BY id DESC LIMIT 1").fetchone()
         prev_hash = last["hash"] if last else audit_module.GENESIS_HASH
@@ -288,7 +288,7 @@ class PostgresStore:
     # --- demo reset ----------------------------------------------------------------
 
     def reset_and_seed(self) -> None:
-        from backend import seed as seed_module
+        import seed as seed_module
 
         self.conn.execute("TRUNCATE audit_log, escalations, actions, messages, sessions RESTART IDENTITY")
         self.conn.execute("TRUNCATE fare_quotes, bookings, customers RESTART IDENTITY CASCADE")

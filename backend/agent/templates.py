@@ -9,8 +9,8 @@ actually decided.
 
 from __future__ import annotations
 
-from backend.agent.policy import status_decision
-from backend.schemas import Booking, Customer, Decision, Sentiment
+from agent.policy import status_decision
+from schemas import Booking, Customer, Decision, Sentiment
 
 _EMPATHY = {
     "frustrated": "I understand this has been frustrating.",

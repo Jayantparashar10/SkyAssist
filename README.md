@@ -29,9 +29,10 @@ server-side (see `frontend/next.config.ts`), so no CORS setup is needed for norm
 pip install -r backend/requirements.txt
 npm install --prefix frontend
 
-python -m backend.seed                               # seed the database once
-uvicorn backend.api.index:app --reload --port 8000    # terminal 1
-npm run dev --prefix frontend                         # terminal 2
+cd backend
+python -m seed                               # seed the database once
+uvicorn api.index:app --reload --port 8000   # terminal 1, still inside backend/
+cd .. && npm run dev --prefix frontend       # terminal 2, from the repo root
 ```
 
 Then open http://localhost:3000. Copy `backend/.env.example` to `backend/.env.local` and fill in
@@ -57,4 +58,4 @@ pytest
 ```
 
 All policy, guardrail, and scenario tests run without hitting the network or database. Live-LLM
-eval is a separate manual script: `python -m backend.tests.eval_understand`.
+eval is a separate manual script, run from inside `backend/`: `python -m tests.eval_understand`.

@@ -6,8 +6,8 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta
 
-from backend.agent import policy
-from backend.schemas import (
+from agent import policy
+from schemas import (
     ActionRecord,
     Booking,
     FareQuote,
@@ -16,7 +16,7 @@ from backend.schemas import (
     SessionContext,
     Understanding,
 )
-from backend.seed import build_fixtures
+from seed import build_fixtures
 
 CUSTOMERS, BOOKINGS, FARE_QUOTES = build_fixtures()
 

@@ -21,7 +21,7 @@ from __future__ import annotations
 
 import re
 
-from backend.schemas import Understanding
+from schemas import Understanding
 
 LEGAL_KEYWORDS = [
     "legal action",

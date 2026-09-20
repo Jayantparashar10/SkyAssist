@@ -11,10 +11,10 @@ final session state for all three required scenarios.
 
 from __future__ import annotations
 
-from backend.agent.templates import build_reply
-from backend.api.index import _apply_escalation_outcome, run_chat_turn, run_choice_turn
-from backend.schemas import Intent, IntentDetails, Understanding
-from backend.tests.fakes import InMemoryStore
+from agent.templates import build_reply
+from api.index import _apply_escalation_outcome, run_chat_turn, run_choice_turn
+from schemas import Intent, IntentDetails, Understanding
+from tests.fakes import InMemoryStore
 
 
 def u(*intents: Intent, **kwargs) -> Understanding:
@@ -114,7 +114,7 @@ def test_scenario_priya_full_flow():
     all_escalations = store.get_escalations_for_pnr("SK4821X")
     assert {(e.rule_id, e.kind) for e in all_escalations} == {("R-BEYOND", "approval"), ("R-RETURN", "handoff")}
 
-    from backend.audit import verify_chain
+    from audit import verify_chain
     assert verify_chain(store.get_all_audit_entries()) is True
 
 

@@ -7,12 +7,12 @@ fooled (the whole point of the backstop).
 
 from __future__ import annotations
 
-from backend.agent import guards
-from backend.agent.templates import build_reply
-from backend.agent.validator import validate_reply
-from backend.api.index import run_chat_turn, run_choice_turn
-from backend.schemas import Intent, IntentDetails, SessionContext, Understanding
-from backend.tests.fakes import InMemoryStore
+from agent import guards
+from agent.templates import build_reply
+from agent.validator import validate_reply
+from api.index import run_chat_turn, run_choice_turn
+from schemas import Intent, IntentDetails, SessionContext, Understanding
+from tests.fakes import InMemoryStore
 
 
 def u(*intents: Intent, **kwargs) -> Understanding:

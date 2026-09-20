@@ -5,8 +5,8 @@ a reply that only restates the decisions must pass. Pure, no LLM, no DB.
 
 from __future__ import annotations
 
-from backend.agent.validator import validate_reply
-from backend.schemas import Decision
+from agent.validator import validate_reply
+from schemas import Decision
 
 VOUCHER = Decision(
     decision_id="d_01", action="ISSUE_MEAL_VOUCHER", status="execute", rule_id="R-DELAY",

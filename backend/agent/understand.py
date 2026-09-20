@@ -6,8 +6,8 @@ of here.
 
 from __future__ import annotations
 
-from backend import llm
-from backend.schemas import Understanding
+import llm
+from schemas import Understanding
 
 SYSTEM_PROMPT = (
     "You convert an airline customer's message into structured JSON. Only extract what "

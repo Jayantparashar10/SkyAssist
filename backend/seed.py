@@ -3,9 +3,10 @@ Customer Resolution Agent.pdf``) plus the one fare quote the data pack
 itself gives (Scenario 3 — a ₹2,000 fare difference, no flight number,
 time or route, so none is invented). This is the single source of
 customer/booking/fare-quote facts for both the real Postgres seed
-(``python -m backend.seed``, and the ``/api/reset`` handler) and the test
-fixtures in ``backend/tests/`` — one source, so a test can never silently
-drift from what actually gets loaded into the database.
+(``python -m seed``, run from inside ``backend/``, and the ``/api/reset``
+handler) and the test fixtures in ``backend/tests/`` — one source, so a
+test can never silently drift from what actually gets loaded into the
+database.
 
 The only field here that isn't verbatim from the data pack is
 ``origin``/``destination``, which use the city names as given rather than
@@ -14,7 +15,7 @@ an invented IATA code.
 
 from __future__ import annotations
 
-from backend.schemas import Booking, Customer, FareQuote
+from schemas import Booking, Customer, FareQuote
 
 CUSTOMERS = [
     {
@@ -112,14 +113,14 @@ def build_fixtures() -> tuple[dict[str, Customer], dict[str, list[Booking]], dic
 
 
 if __name__ == "__main__":
-    # `python -m backend.seed` — seeds a fresh Neon database.
+    # Run from inside backend/: `python -m seed` — seeds a fresh Neon database.
     from pathlib import Path
 
     from dotenv import load_dotenv
 
     load_dotenv(Path(__file__).resolve().parent / ".env.local")
 
-    from backend.db import PostgresStore, get_connection
+    from db import PostgresStore, get_connection
 
     with get_connection() as conn:
         PostgresStore(conn).reset_and_seed()

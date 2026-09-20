@@ -543,7 +543,7 @@ why). Locally, Next.js and uvicorn run as two separate processes.
   pages, calling the backend via the rewrite in §6), one with Root Directory `backend/` (the
   FastAPI function under `backend/api/`). Splitting them this way means either can be redeployed,
   scaled, or swapped (e.g. backend moved to a non-Vercel host later) without touching the other.
-- **Neon:** create a project, run `backend/schema.sql`, then `python -m backend.seed`.
+- **Neon:** create a project, run `backend/schema.sql`, then (from inside `backend/`) `python -m seed`.
 - **Environment variables:**
 
 | Variable | Set on | Example |
@@ -563,9 +563,10 @@ why). Locally, Next.js and uvicorn run as two separate processes.
 - **Local run (after `pip install -r backend/requirements.txt` and `npm install --prefix frontend`):**
 
 ```bash
-python -m backend.seed
-uvicorn backend.api.index:app --reload --port 8000   # terminal 1
-npm run dev --prefix frontend                        # terminal 2
+cd backend
+python -m seed
+uvicorn api.index:app --reload --port 8000    # terminal 1, still inside backend/
+cd .. && npm run dev --prefix frontend        # terminal 2, from the repo root
 ```
 
 - **Groq rate limits:** vary by account tier — check the key's actual limits before the evaluation and size `eval_understand.py`'s request pacing accordingly.

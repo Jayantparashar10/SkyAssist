@@ -4,8 +4,8 @@ refusals, injection flagging. Pure, no LLM, no DB.
 
 from __future__ import annotations
 
-from backend.agent import guards
-from backend.schemas import Intent, IntentDetails, Understanding
+from agent import guards
+from schemas import Intent, IntentDetails, Understanding
 
 
 def blank_understanding(**kwargs) -> Understanding:
