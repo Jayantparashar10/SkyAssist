@@ -9,6 +9,9 @@ Full architecture and spec: [`project.md`](./project.md).
 
 ## Live demo
 
+https://github.com/user-attachments/assets/500a80ba-7b13-4570-904f-d076613d1e15
+
+
 - Customer chat: https://skyassists.vercel.app
 - Supervisor console: https://skyassists.vercel.app/supervisor
 
