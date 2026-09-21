@@ -65,7 +65,13 @@ SYSTEM_PROMPT = (
     "If the message is ambiguous in some other way that genuinely blocks choosing a decision, "
     "set needs_clarification=true. Sentiment reflects the customer's tone, not their "
     'entitlement. A "claimed_tier" is only set if the customer explicitly states a loyalty '
-    "tier in this message — it is never used to grant anything, only logged."
+    "tier in this message — it is never used to grant anything, only logged.\n\n"
+    "language reflects the script the customer actually typed in, not just the vocabulary: "
+    '"hi" is Hindi written in Devanagari script (e.g. "मेरी टिकट रद्द करो"). "hinglish" is '
+    "Hindi/English mixed and written in Roman letters (e.g. \"meri ticket cancel kar do\", "
+    '"mai case kar dunga") — this is the common case for Hindi-speaking customers typing on a '
+    'keyboard; never label romanized Hindi as "hi" just because the words are Hindi. "en" is '
+    "English."
 )
 
 JSON_SCHEMA = {
