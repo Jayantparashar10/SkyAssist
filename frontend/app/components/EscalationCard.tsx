@@ -34,8 +34,8 @@ function KindBadge({ kind }: { kind: Escalation["kind"] }) {
   );
 }
 
-function timeWaiting(createdAt: string) {
-  const ms = Date.now() - new Date(createdAt).getTime();
+function elapsed(from: string, to: number) {
+  const ms = to - new Date(from).getTime();
   const mins = Math.max(0, Math.round(ms / 60000));
   if (mins < 60) return `${mins}m`;
   return `${Math.round(mins / 60)}h ${mins % 60}m`;
@@ -85,7 +85,10 @@ export function EscalationCard({
           </div>
         </div>
         <p className="mt-2 text-[11px] text-muted-foreground">
-          {escalation.rule_id} · waiting {timeWaiting(escalation.created_at)}
+          {escalation.rule_id} ·{" "}
+          {escalation.status === "pending" || !escalation.resolved_at
+            ? `waiting ${elapsed(escalation.created_at, Date.now())}`
+            : `resolved in ${elapsed(escalation.created_at, new Date(escalation.resolved_at).getTime())}`}
         </p>
       </button>
     );
