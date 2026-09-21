@@ -29,7 +29,12 @@ SYSTEM_PROMPT = (
     'my rebooking" are status_query, not general_question, even though no new action is being '
     "requested.\n"
     "- compensation_query: asking what they are owed/entitled to for a delay or cancellation "
-    '("what do I get", "what am I entitled to"), without naming a specific benefit.\n'
+    '("what do I get", "what am I entitled to"), without naming a specific benefit — OR '
+    "insisting on / re-asking for a delay/cancellation benefit that has no specific type of its "
+    'own below, such as a meal voucher ("I want the voucher", "give me my compensation"), even '
+    "phrased as a flat demand rather than a question. A benefit that DOES have its own specific "
+    "type below (hotel, lounge, upgrade, refund, rebooking) always uses that type instead, "
+    "whether newly asked or repeated.\n"
     "- request_upgrade: wants a complimentary upgrade to a better cabin class on the flight "
     "they already hold a seat on. Never about switching to a different flight.\n"
     "- change_flight_higher_fare: wants to move to a DIFFERENT flight than the one booked, and "

@@ -182,7 +182,10 @@ def run_chat_turn(
         store.insert_audit(session.id, "injection_flagged", {"message": raw_message})
 
     existing_before = store.get_actions_for_pnr(session.pnr)
-    result = policy.evaluate(customer, bookings, fare_quotes, guarded, session.context, existing_before)
+    existing_escalations = store.get_escalations_for_pnr(session.pnr)
+    result = policy.evaluate(
+        customer, bookings, fare_quotes, guarded, session.context, existing_before, existing_escalations
+    )
     return _finish_turn(
         store, session, customer, bookings, result.decisions, result.session_ctx,
         guarded.sentiment, guarded.language, guarded, existing_before, respond_fn, raw_message,
@@ -204,7 +207,8 @@ def run_choice_turn(
     label = _choice_label(choice_id)
     store.add_message(session.id, "customer", label)
     existing_before = store.get_actions_for_pnr(session.pnr)
-    result = policy.resolve_choice(choice_id, customer, bookings, fare_quotes, session.context)
+    existing_escalations = store.get_escalations_for_pnr(session.pnr)
+    result = policy.resolve_choice(choice_id, customer, bookings, fare_quotes, session.context, existing_escalations)
     synthetic = Understanding(sentiment="calm")
     return _finish_turn(
         store, session, customer, bookings, result.decisions, result.session_ctx,

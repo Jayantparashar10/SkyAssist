@@ -220,6 +220,63 @@ def test_repeated_pressure_after_denial_does_not_reescalate():
     assert all_escalations[0].status == "denied"
 
 
+def test_repeated_pressure_while_escalation_still_pending_reports_status():
+    """Same shape as the denial test above, but the supervisor never
+    replies — a repeat ask must report the pending escalation, not
+    re-explain from scratch or open a second one."""
+    store = InMemoryStore()
+    session, customer, bookings, fare_quotes = login(store, "SK4821X", "Nair")
+
+    r1 = run_chat_turn(
+        store, session, customer, bookings, fare_quotes,
+        u(intent("request_upgrade", "I want a free upgrade")),
+        "I want a free upgrade", respond_fn=FAKE_RESPOND,
+    )
+    assert [d.action for d in r1["decisions"]] == ["EXPLAIN_INELIGIBLE", "OFFER_ESCALATION"]
+    session = store.get_session(session.id)
+
+    r2 = run_choice_turn(store, session, customer, bookings, fare_quotes, "beyond:request_upgrade:accept", respond_fn=FAKE_RESPOND)
+    assert r2["escalations"][0].status == "pending"
+    session = store.get_session(session.id)
+
+    for _ in range(3):
+        r = run_chat_turn(
+            store, session, customer, bookings, fare_quotes,
+            u(intent("request_upgrade", "any update on that upgrade?")),
+            "any update on that upgrade?", respond_fn=FAKE_RESPOND,
+        )
+        assert len(r["decisions"]) == 1
+        assert r["decisions"][0].action == "STATUS"
+        assert r["decisions"][0].rule_id == "R-BEYOND"
+        assert r["escalations"] == []
+        session = store.get_session(session.id)
+
+    all_escalations = store.get_escalations_for_pnr("SK4821X")
+    assert len(all_escalations) == 1
+    assert all_escalations[0].status == "pending"
+
+
+def test_repeated_legal_threat_while_pending_does_not_double_escalate():
+    store = InMemoryStore()
+    session, customer, bookings, fare_quotes = login(store, "WL7742", "Kaur")
+
+    message = "This is unacceptable, I'm going to sue you."
+    understanding = u(legal_threat=True, sentiment="angry")
+    r1 = run_chat_turn(store, session, customer, bookings, fare_quotes, understanding, message, respond_fn=FAKE_RESPOND)
+    assert r1["decisions"][0].action == "ESCALATE"
+    assert len(r1["escalations"]) == 1
+    session = store.get_session(session.id)
+
+    r2 = run_chat_turn(store, session, customer, bookings, fare_quotes, understanding, message, respond_fn=FAKE_RESPOND)
+    assert len(r2["decisions"]) == 1
+    assert r2["decisions"][0].action == "STATUS"
+    assert r2["decisions"][0].rule_id == "R-LEGAL"
+    assert r2["escalations"] == []
+
+    all_escalations = store.get_escalations_for_pnr("WL7742")
+    assert len(all_escalations) == 1
+
+
 def test_repeated_pressure_before_any_response_does_not_double_grant():
     """Sanity check for the idempotency guarantee itself: asking the same
     compensable thing twice in a row (e.g. after a page refresh replaying a

@@ -131,14 +131,14 @@ def test_delay_boundary_offers_escalation_review_once():
     decisions = policy.delay_decisions(delayed_booking(3.0))
     assert not any(d.action == "OFFER_ESCALATION" for d in decisions)
     boundary_ctx = SessionContext()
-    offer = policy._offer_delay_boundary_review(boundary_ctx)
+    offer = policy._offer_delay_boundary_review(boundary_ctx, [])
     assert len(offer) == 1
     assert offer[0].action == "OFFER_ESCALATION"
     assert offer[0].rule_id == "R-DELAY"
     assert "A-04" in offer[0].assumption_ids
     assert "delay_band_boundary" in boundary_ctx.pending_offers
     # Offering again does nothing further (offered once).
-    assert policy._offer_delay_boundary_review(boundary_ctx) == []
+    assert policy._offer_delay_boundary_review(boundary_ctx, []) == []
 
 
 def test_delay_boundary_review_accept_escalates_via_choice():
@@ -371,13 +371,31 @@ def test_meher_hotel_request_as_first_message_grants_offer_directly():
     assert all(d.rule_id == "R-DELAY" for d in result.decisions)
 
 
-def test_meher_hotel_request_after_already_granted_is_a_quiet_noop():
+def test_meher_hotel_request_after_already_granted_reports_status():
     existing = [
         ActionRecord(id=1, session_id="s", pnr="WL7742", type="ISSUE_MEAL_VOUCHER", params={}, rule_id="R-DELAY", status="issued", created_at=datetime.now()),
         ActionRecord(id=2, session_id="s", pnr="WL7742", type="OFFER_HOTEL", params={}, rule_id="R-DELAY", status="offered", created_at=datetime.now()),
     ]
     result = run("WL7742", [intent("request_hotel", "can I get a hotel")], existing=existing)
-    assert result.decisions == []
+    assert len(result.decisions) == 1
+    d = result.decisions[0]
+    assert d.action == "STATUS"
+    assert d.rule_id == "R-DELAY"
+    assert "meal voucher" in d.customer_facing_facts[0]
+    assert "hotel offer" in d.customer_facing_facts[0]
+
+
+def test_arvind_lounge_request_after_already_granted_reports_status():
+    existing = [
+        ActionRecord(id=1, session_id="s", pnr="TR1190B", type="ISSUE_MEAL_VOUCHER", params={}, rule_id="R-DELAY", status="issued", created_at=datetime.now()),
+        ActionRecord(id=2, session_id="s", pnr="TR1190B", type="GRANT_LOUNGE", params={}, rule_id="R-DELAY", status="issued", created_at=datetime.now()),
+    ]
+    result = run("TR1190B", [intent("request_lounge", "can I get lounge access")], existing=existing)
+    assert len(result.decisions) == 1
+    d = result.decisions[0]
+    assert d.action == "STATUS"
+    assert d.rule_id == "R-DELAY"
+    assert "lounge access" in d.customer_facing_facts[0]
 
 
 def test_arvind_no_tier_priority_for_silver():

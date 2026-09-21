@@ -16,6 +16,7 @@ from schemas import (
     Booking,
     Customer,
     Decision,
+    Escalation,
     FareQuote,
     Intent,
     SessionContext,
@@ -282,6 +283,33 @@ def _already_handled_decision(booking: Booking, existing_types: set[str]) -> Dec
     return None
 
 
+# --- "already escalated, still pending" status, for a repeat ask -----------
+
+
+def _find_pending_escalation(
+    existing_escalations: list[Escalation], rule_id: str, kind: str, topic: str | None = None
+) -> Escalation | None:
+    for e in existing_escalations:
+        if e.status != "pending" or e.rule_id != rule_id or e.kind != kind:
+            continue
+        if topic is not None and e.packet.decision_params.get("topic") != topic:
+            continue
+        return e
+    return None
+
+
+def _already_escalated_decision(rule_id: str) -> Decision:
+    return Decision(
+        decision_id="", action="STATUS", status="execute", rule_id=rule_id,
+        params={},
+        customer_facing_facts=[
+            "This has already been escalated to a supervisor and is assigned to someone — "
+            "you'll hear back as soon as they've reviewed it."
+        ],
+        assumption_ids=[],
+    )
+
+
 # --- R-DELAY (A-02, A-03, A-04) ----------------------------------------------
 
 
@@ -357,9 +385,11 @@ def _decline_hotel_decision() -> Decision:
     )
 
 
-def _offer_delay_boundary_review(ctx: SessionContext) -> list[Decision]:
+def _offer_delay_boundary_review(ctx: SessionContext, existing_escalations: list[Escalation]) -> list[Decision]:
     """A-04 boundary delay: offer a supervisor review once, not on every message."""
     topic = "delay_band_boundary"
+    if _find_pending_escalation(existing_escalations, "R-BEYOND", "approval", topic):
+        return [_already_escalated_decision("R-BEYOND")]
     if topic in ctx.pending_offers or topic in ctx.resolved_topics:
         return []
     ctx.pending_offers[topic] = {"rule_id": "R-DELAY", "requested": BEYOND_TOPICS[topic]["requested"]}
@@ -492,13 +522,17 @@ def _decline_decision(topic: str) -> Decision:
     )
 
 
-def _beyond(ctx: SessionContext, topic: str, requested_text: str) -> list[Decision]:
+def _beyond(
+    ctx: SessionContext, topic: str, requested_text: str, existing_escalations: list[Escalation]
+) -> list[Decision]:
     """Explains first; only escalates once the customer insists or accepts."""
     resolved = ctx.resolved_topics.get(topic)
     if resolved == "denied":
         return [_already_denied_decision(topic)]
     if resolved == "approved":
         return []
+    if _find_pending_escalation(existing_escalations, "R-BEYOND", "approval", topic):
+        return [_already_escalated_decision("R-BEYOND")]
     if topic in ctx.pending_offers:
         del ctx.pending_offers[topic]
         return [_escalate_beyond_decision(topic, requested_text)]
@@ -542,6 +576,7 @@ def _handle_intent(
     fare_quotes: list[FareQuote],
     ctx: SessionContext,
     existing_types: set[str],
+    existing_escalations: list[Escalation],
 ) -> list[Decision]:
     t = intent.type
 
@@ -563,7 +598,7 @@ def _handle_intent(
             out.extend(_delay_decisions_if_new(booking, existing_types))
             hours = delay_hours(booking)
             if hours in (3.0, 5.0):
-                out.extend(_offer_delay_boundary_review(ctx))
+                out.extend(_offer_delay_boundary_review(ctx, existing_escalations))
         already = _already_handled_decision(booking, existing_types)
         if already:
             out.append(already)
@@ -590,40 +625,53 @@ def _handle_intent(
         return _confirm_refund_decisions(bookings, ctx)
 
     if t == "refund_different_method":
+        if _find_pending_escalation(existing_escalations, "R-REFUND-METHOD", "approval"):
+            return [_already_escalated_decision("R-REFUND-METHOD")]
         return [_refund_method_escalate_decision(intent.details.refund_method_mentioned)]
 
     if t == "request_upgrade":
-        return _beyond(ctx, "request_upgrade", intent.quote)
+        return _beyond(ctx, "request_upgrade", intent.quote, existing_escalations)
 
     if t == "request_full_night_hotel":
-        return _beyond(ctx, "request_full_night_hotel", intent.quote)
+        return _beyond(ctx, "request_full_night_hotel", intent.quote, existing_escalations)
 
     if t == "request_hotel":
         booking = find_delayed_leg(bookings)
         hours = delay_hours(booking) if booking else None
         if hours is not None and hours > 5:
-            return _delay_decisions_if_new(booking, existing_types)
-        return _beyond(ctx, "request_hotel_under_5h", intent.quote)
+            fresh = _delay_decisions_if_new(booking, existing_types)
+            if fresh:
+                return fresh
+            already = _already_handled_decision(booking, existing_types)
+            return [already] if already else []
+        return _beyond(ctx, "request_hotel_under_5h", intent.quote, existing_escalations)
 
     if t == "request_lounge":
-        if "GRANT_LOUNGE" in existing_types:
-            return []
         booking = find_delayed_leg(bookings)
+        if "GRANT_LOUNGE" in existing_types:
+            already = _already_handled_decision(booking, existing_types) if booking else None
+            return [already] if already else []
         hours = delay_hours(booking) if booking else None
         if hours is not None and 3 < hours <= 5:
             return _delay_decisions_if_new(booking, existing_types)
-        return _beyond(ctx, "request_lounge", intent.quote)
+        return _beyond(ctx, "request_lounge", intent.quote, existing_escalations)
 
     if t == "request_fare_waiver":
+        if _find_pending_escalation(existing_escalations, "R-FARE", "approval"):
+            return [_already_escalated_decision("R-FARE")]
         return [_fare_waiver_escalate_decision(fare_quotes)]
 
     if t == "change_flight_higher_fare":
         return _fare_quote_decisions(fare_quotes)
 
     if t == "change_return_flight":
+        if _find_pending_escalation(existing_escalations, "R-RETURN", "handoff"):
+            return [_already_escalated_decision("R-RETURN")]
         return [_return_leg_escalate_decision(bookings)]
 
     if t == "missed_flight":
+        if _find_pending_escalation(existing_escalations, "R-NONAIRLINE", "handoff"):
+            return [_already_escalated_decision("R-NONAIRLINE")]
         return [_nonairline_escalate_decision()]
 
     return []
@@ -639,13 +687,18 @@ def evaluate(
     understanding: Understanding,
     session_ctx: SessionContext,
     existing_actions: list[ActionRecord],
+    existing_escalations: list[Escalation] | None = None,
 ) -> EvaluationResult:
     ctx = session_ctx.model_copy(deep=True)
     existing_types = {a.type for a in existing_actions}
+    existing_escalations = existing_escalations or []
     decisions: list[Decision] = []
 
     if understanding.legal_threat or understanding.formal_complaint:
-        decisions.append(_legal_decision())
+        if _find_pending_escalation(existing_escalations, "R-LEGAL", "immediate"):
+            decisions.append(_already_escalated_decision("R-LEGAL"))
+        else:
+            decisions.append(_legal_decision())
 
     for intent in understanding.intents:
         details = intent.details
@@ -655,7 +708,9 @@ def evaluate(
             if ref not in (own_pnr.strip().lower(), customer.name.strip().lower()):
                 decisions.append(_privacy_decision())
                 continue
-        decisions.extend(_handle_intent(intent, customer, bookings, fare_quotes, ctx, existing_types))
+        decisions.extend(
+            _handle_intent(intent, customer, bookings, fare_quotes, ctx, existing_types, existing_escalations)
+        )
 
     return EvaluationResult(decisions=_assign_ids(decisions), session_ctx=ctx)
 
@@ -666,10 +721,12 @@ def resolve_choice(
     bookings: list[Booking],
     fare_quotes: list[FareQuote],
     session_ctx: SessionContext,
+    existing_escalations: list[Escalation] | None = None,
 ) -> EvaluationResult:
     """Handles POST /api/choice. A button click is already structured, so
     this never calls the LLM."""
     ctx = session_ctx.model_copy(deep=True)
+    existing_escalations = existing_escalations or []
     parts = choice_id.split(":")
     kind = parts[0]
 
@@ -702,6 +759,8 @@ def resolve_choice(
     if kind == "fare":
         if parts[1] == "pay":
             decisions = [_fare_handoff_decision(fare_quotes)]
+        elif _find_pending_escalation(existing_escalations, "R-FARE", "approval"):
+            decisions = [_already_escalated_decision("R-FARE")]
         else:
             decisions = [_fare_waiver_escalate_decision(fare_quotes)]
         return EvaluationResult(decisions=_assign_ids(decisions), session_ctx=ctx)
@@ -709,10 +768,12 @@ def resolve_choice(
     if kind == "beyond":
         topic, action = parts[1], parts[2]
         ctx.pending_offers.pop(topic, None)
-        if action == "accept":
-            decisions = [_escalate_beyond_decision(topic, BEYOND_TOPICS[topic]["requested"])]
-        else:
+        if action != "accept":
             decisions = [_decline_decision(topic)]
+        elif _find_pending_escalation(existing_escalations, "R-BEYOND", "approval", topic):
+            decisions = [_already_escalated_decision("R-BEYOND")]
+        else:
+            decisions = [_escalate_beyond_decision(topic, BEYOND_TOPICS[topic]["requested"])]
         return EvaluationResult(decisions=_assign_ids(decisions), session_ctx=ctx)
 
     raise ValueError(f"unknown choice_id: {choice_id!r}")
