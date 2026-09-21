@@ -58,6 +58,26 @@ function tabClass(active: boolean) {
   }`;
 }
 
+const SESSION_STORAGE_KEY = "skyassist:session";
+
+function loadStoredSession(): SessionResponse | null {
+  try {
+    const raw = sessionStorage.getItem(SESSION_STORAGE_KEY);
+    return raw ? (JSON.parse(raw) as SessionResponse) : null;
+  } catch {
+    return null;
+  }
+}
+
+function storeSession(session: SessionResponse | null) {
+  try {
+    if (session) sessionStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(session));
+    else sessionStorage.removeItem(SESSION_STORAGE_KEY);
+  } catch {
+    // Storage unavailable (private mode, etc.) — session just won't survive a refresh.
+  }
+}
+
 export default function CustomerPage() {
   const [pnr, setPnr] = useState("");
   const [lastName, setLastName] = useState("");
@@ -66,6 +86,7 @@ export default function CustomerPage() {
   const demoHint = useSyncExternalStore(subscribeNever, getClientDemoHint, getServerDemoHint);
 
   const [session, setSession] = useState<SessionResponse | null>(null);
+  const [restoring, setRestoring] = useState(true);
   const [messages, setMessages] = useState<Message[]>([]);
   const [choices, setChoices] = useState<Choice[]>([]);
   const [actions, setActions] = useState<ActionRecord[]>([]);
@@ -82,6 +103,32 @@ export default function CustomerPage() {
   useEffect(() => {
     sendingRef.current = sending;
   }, [sending]);
+
+  // Restores a session saved on login so a page refresh doesn't force a
+  // re-login; validates it against the server since it may have been reset.
+  useEffect(() => {
+    let cancelled = false;
+    async function restore() {
+      const stored = loadStoredSession();
+      if (!stored) return;
+      try {
+        const detail = await getSession(stored.session_id);
+        if (cancelled) return;
+        setSession(stored);
+        setMessages(detail.messages);
+        setActions(detail.actions);
+        setEscalations(detail.escalations);
+      } catch {
+        storeSession(null);
+      }
+    }
+    restore().finally(() => {
+      if (!cancelled) setRestoring(false);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
@@ -102,8 +149,12 @@ export default function CustomerPage() {
         setMessages(detail.messages);
         setActions(detail.actions);
         setEscalations(detail.escalations);
-      } catch {
-        // Silent: transient poll failures shouldn't interrupt an active chat.
+      } catch (err) {
+        if (!cancelled && err instanceof ApiError && err.status === 404) {
+          storeSession(null);
+          setSession(null);
+        }
+        // Otherwise silent: transient poll failures shouldn't interrupt an active chat.
       }
     };
 
@@ -122,6 +173,7 @@ export default function CustomerPage() {
     try {
       const res = await login(pnr.trim(), lastName.trim());
       setSession(res);
+      storeSession(res);
     } catch (err) {
       const message =
         err instanceof ApiError && err.status === 401
@@ -202,6 +254,10 @@ export default function CustomerPage() {
     } finally {
       setSending(false);
     }
+  }
+
+  if (restoring) {
+    return <main className="flex min-h-screen flex-1" />;
   }
 
   if (!session) {
@@ -295,16 +351,28 @@ export default function CustomerPage() {
             </p>
           </div>
         </div>
-        <div className="flex gap-1 rounded-full bg-background p-1 lg:hidden">
-          <button type="button" onClick={() => setMobileView("chat")} className={tabClass(mobileView === "chat")}>
-            Chat
-          </button>
+        <div className="flex items-center gap-3">
+          <div className="flex gap-1 rounded-full bg-background p-1 lg:hidden">
+            <button type="button" onClick={() => setMobileView("chat")} className={tabClass(mobileView === "chat")}>
+              Chat
+            </button>
+            <button
+              type="button"
+              onClick={() => setMobileView("details")}
+              className={tabClass(mobileView === "details")}
+            >
+              Details
+            </button>
+          </div>
           <button
             type="button"
-            onClick={() => setMobileView("details")}
-            className={tabClass(mobileView === "details")}
+            onClick={() => {
+              storeSession(null);
+              setSession(null);
+            }}
+            className="text-xs font-medium text-muted-foreground hover:text-foreground"
           >
-            Details
+            Sign out
           </button>
         </div>
       </header>

@@ -20,9 +20,29 @@ function errorMessage(err: unknown, fallback: string) {
   return fallback;
 }
 
+const PASSCODE_STORAGE_KEY = "skyassist:supervisor-passcode";
+
+function loadStoredPasscode(): string | null {
+  try {
+    return sessionStorage.getItem(PASSCODE_STORAGE_KEY);
+  } catch {
+    return null;
+  }
+}
+
+function storePasscode(passcode: string | null) {
+  try {
+    if (passcode) sessionStorage.setItem(PASSCODE_STORAGE_KEY, passcode);
+    else sessionStorage.removeItem(PASSCODE_STORAGE_KEY);
+  } catch {
+    // Storage unavailable — the passcode just won't survive a refresh.
+  }
+}
+
 export default function SupervisorPage() {
   const [passcode, setPasscode] = useState("");
   const [authed, setAuthed] = useState(false);
+  const [restoring, setRestoring] = useState(true);
   const [authing, setAuthing] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
 
@@ -58,6 +78,7 @@ export default function SupervisorPage() {
       setResolved(list.resolved);
       setAudit(auditStatus);
       setAuthed(true);
+      storePasscode(passcode);
     } catch (err) {
       const message =
         err instanceof ApiError && err.status === 401
@@ -68,6 +89,39 @@ export default function SupervisorPage() {
       setAuthing(false);
     }
   }
+
+  function handleSignOut() {
+    storePasscode(null);
+    setAuthed(false);
+    setPasscode("");
+  }
+
+  // Restores the passcode saved on a successful login so a page refresh
+  // doesn't force re-entering it; validates it against the server.
+  useEffect(() => {
+    let cancelled = false;
+    async function restore() {
+      const stored = loadStoredPasscode();
+      if (!stored) return;
+      try {
+        const [list, auditStatus] = await Promise.all([getEscalations(stored), verifyAudit(stored)]);
+        if (cancelled) return;
+        setPasscode(stored);
+        setPending(list.pending);
+        setResolved(list.resolved);
+        setAudit(auditStatus);
+        setAuthed(true);
+      } catch {
+        storePasscode(null);
+      }
+    }
+    restore().finally(() => {
+      if (!cancelled) setRestoring(false);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     if (!authed) return;
@@ -97,6 +151,10 @@ export default function SupervisorPage() {
     } finally {
       setResetting(false);
     }
+  }
+
+  if (restoring) {
+    return <main className="flex min-h-screen flex-1" />;
   }
 
   if (!authed) {
@@ -156,14 +214,23 @@ export default function SupervisorPage() {
 
   return (
     <main className="flex min-h-screen flex-1 flex-col">
-      <header className="flex items-center gap-2.5 border-b border-border bg-card px-4 py-3 sm:px-6">
-        <Logo size="sm" />
-        <div>
-          <p className="text-sm font-semibold">Supervisor console</p>
-          <p className="text-xs text-muted-foreground">
-            {pending.length} pending · {resolved.length} resolved
-          </p>
+      <header className="flex items-center justify-between border-b border-border bg-card px-4 py-3 sm:px-6">
+        <div className="flex items-center gap-2.5">
+          <Logo size="sm" />
+          <div>
+            <p className="text-sm font-semibold">Supervisor console</p>
+            <p className="text-xs text-muted-foreground">
+              {pending.length} pending · {resolved.length} resolved
+            </p>
+          </div>
         </div>
+        <button
+          type="button"
+          onClick={handleSignOut}
+          className="text-xs font-medium text-muted-foreground hover:text-foreground"
+        >
+          Sign out
+        </button>
       </header>
 
       {listError && (
