@@ -103,6 +103,28 @@ def _assumptions_applied(decisions: list[Decision]) -> list[str]:
     return sorted({aid for d in decisions for aid in d.assumption_ids})
 
 
+# Static labels for a choice_id, mirroring _build_choices — used to persist
+# the customer's button click as a real chat message (see run_choice_turn).
+_CHOICE_LABELS = {
+    "cancel:rebook": "Rebook on next available flight",
+    "cancel:refund": "Full refund",
+    "refund:confirm": "Confirm refund",
+    "hotel:accept": "Yes, book the hotel",
+    "hotel:decline": "No thanks",
+    "fare:pay": "Pay the difference",
+    "fare:waiver": "Request a waiver",
+}
+
+
+def _choice_label(choice_id: str) -> str:
+    if choice_id in _CHOICE_LABELS:
+        return _CHOICE_LABELS[choice_id]
+    parts = choice_id.split(":")
+    if len(parts) == 3 and parts[0] == "beyond":
+        return "Yes, escalate" if parts[2] == "accept" else "No thanks"
+    return choice_id
+
+
 def _finish_turn(
     store: Store,
     session: Session,
@@ -115,9 +137,10 @@ def _finish_turn(
     understanding_for_packet: Understanding,
     existing_before: list[ActionRecord],
     respond_fn: Callable[[list[Decision], str, Sentiment, Language], str],
+    raw_message: str = "",
 ) -> dict:
     actions, escalations = executor.execute_decisions(
-        store, session, customer, bookings, decisions, understanding_for_packet, existing_before
+        store, session, customer, bookings, decisions, understanding_for_packet, existing_before, raw_message
     )
     store.update_session_context(session.id, session.state, new_session_ctx)
 
@@ -162,7 +185,7 @@ def run_chat_turn(
     result = policy.evaluate(customer, bookings, fare_quotes, guarded, session.context, existing_before)
     return _finish_turn(
         store, session, customer, bookings, result.decisions, result.session_ctx,
-        guarded.sentiment, guarded.language, guarded, existing_before, respond_fn,
+        guarded.sentiment, guarded.language, guarded, existing_before, respond_fn, raw_message,
     )
 
 
@@ -175,13 +198,17 @@ def run_choice_turn(
     choice_id: str,
     respond_fn: Callable[[list[Decision], str, Sentiment, Language], str] = respond.respond,
 ) -> dict:
-    # Button clicks skip step 1 (understand.py) — the choice is already structured.
+    # Button clicks skip step 1 (understand.py) — the choice is already
+    # structured. Persisted as a real customer message so it shows up in
+    # the transcript instead of only existing as a frontend optimistic bubble.
+    label = _choice_label(choice_id)
+    store.add_message(session.id, "customer", label)
     existing_before = store.get_actions_for_pnr(session.pnr)
     result = policy.resolve_choice(choice_id, customer, bookings, fare_quotes, session.context)
     synthetic = Understanding(sentiment="calm")
     return _finish_turn(
         store, session, customer, bookings, result.decisions, result.session_ctx,
-        "calm", "en", synthetic, existing_before, respond_fn,
+        "calm", "en", synthetic, existing_before, respond_fn, label,
     )
 
 

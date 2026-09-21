@@ -53,12 +53,14 @@ export function EscalationCard({
   onDecide,
   selected,
   onClick,
+  onViewTranscript,
 }: {
   escalation: Escalation;
   detail?: boolean;
   onDecide?: (decision: "approve" | "deny" | "complete", note: string) => void;
   selected?: boolean;
   onClick?: () => void;
+  onViewTranscript?: (sessionId: string) => void;
 }) {
   const [note, setNote] = useState(escalation.supervisor_note ?? "");
   const [submitting, setSubmitting] = useState<"approve" | "deny" | "complete" | null>(null);
@@ -174,12 +176,13 @@ export function EscalationCard({
         )}
       </dl>
 
-      <a
-        href={`/?session=${packet.transcript_session_id}`}
-        className="text-xs font-medium text-accent hover:underline"
+      <button
+        type="button"
+        onClick={() => onViewTranscript?.(packet.transcript_session_id)}
+        className="self-start text-xs font-medium text-accent hover:underline"
       >
         View full transcript →
-      </a>
+      </button>
 
       {isPending ? (
         <div className="flex flex-col gap-3 border-t border-border pt-4">

@@ -87,6 +87,7 @@ def _build_packet(
     bookings: list[Booking],
     understanding: Understanding,
     running_existing: list[ActionRecord],
+    raw_message: str = "",
 ) -> EscalationPacket:
     notes = list(d.assumption_ids)
     already_hotel = any(a.type in ("OFFER_HOTEL", "BOOK_HOTEL_DELAYED_HOURS") for a in running_existing)
@@ -96,7 +97,9 @@ def _build_packet(
             "flight isn't addressed by the rules — for the human to decide."
         )
     blocked_by = f"{d.rule_id}: {d.customer_facing_facts[0]}" if d.customer_facing_facts else d.rule_id
-    quote = next((i.quote for i in understanding.intents), "")
+    # A pure legal threat or a button click may carry no intent with its own
+    # quote — fall back to the actual message/choice so this is never blank.
+    quote = next((i.quote for i in understanding.intents), "") or raw_message
     return EscalationPacket(
         kind=_escalation_kind(d),
         customer=PacketCustomer(name=customer.name, tier=customer.tier, pnr=session.pnr),
@@ -120,6 +123,7 @@ def execute_decisions(
     decisions: list[Decision],
     understanding: Understanding,
     existing_actions_before: list[ActionRecord],
+    raw_message: str = "",
 ) -> tuple[list[ActionRecord], list[Escalation]]:
     new_actions: list[ActionRecord] = []
     new_escalations: list[Escalation] = []
@@ -142,7 +146,7 @@ def execute_decisions(
             )
 
         elif d.status == "escalate":
-            packet = _build_packet(d, customer, session, bookings, understanding, running_existing)
+            packet = _build_packet(d, customer, session, bookings, understanding, running_existing, raw_message)
             escalation = store.insert_escalation(session.id, session.pnr, kind=packet.kind, reason=d.rule_id, rule_id=d.rule_id, packet=packet)
             new_escalations.append(escalation)
             store.insert_audit(

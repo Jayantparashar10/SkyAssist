@@ -13,6 +13,7 @@ import {
 } from "@/app/lib/api";
 import { EscalationCard } from "@/app/components/EscalationCard";
 import { Logo } from "@/app/components/Logo";
+import { TranscriptModal } from "@/app/components/TranscriptModal";
 
 function errorMessage(err: unknown, fallback: string) {
   if (err instanceof ApiError && err.message) return err.message;
@@ -28,6 +29,7 @@ export default function SupervisorPage() {
   const [pending, setPending] = useState<Escalation[]>([]);
   const [resolved, setResolved] = useState<Escalation[]>([]);
   const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [transcriptSessionId, setTranscriptSessionId] = useState<string | null>(null);
   const [audit, setAudit] = useState<AuditStatus | null>(null);
   const [listError, setListError] = useState<string | null>(null);
   const [resetting, setResetting] = useState(false);
@@ -213,6 +215,7 @@ export default function SupervisorPage() {
               escalation={selected}
               detail
               onDecide={(decision, note) => handleDecide(selected.id, decision, note)}
+              onViewTranscript={setTranscriptSessionId}
             />
           ) : (
             <div className="flex h-full items-center justify-center rounded-2xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
@@ -246,6 +249,10 @@ export default function SupervisorPage() {
           {resetting ? "Resetting…" : "Reset demo"}
         </button>
       </footer>
+
+      {transcriptSessionId && (
+        <TranscriptModal sessionId={transcriptSessionId} onClose={() => setTranscriptSessionId(null)} />
+      )}
     </main>
   );
 }
